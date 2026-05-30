@@ -1,0 +1,121 @@
+================================================================================
+1. セットアップ手順
+================================================================================
+
+■ ステップ 1: リポジトリのクローンと仮想環境の作成
+GitHubからコードをダウンロードし、そのパソコン環境専用の仮想環境を作成・有効化します。
+
+【コマンド (Bash)】
+# リポジトリのクローン (環境に合わせてURLを変更してください)
+git clone <repository-url>
+cd <repository-name>
+
+# 仮想環境の作成
+python3 -m venv .venv
+
+# 仮想環境の有効化
+source .venv/bin/activate
+
+
+■ ステップ 2: 依存パッケージのインストール
+共有された requirements.txt を使って、必要なライブラリを一括インストールします。
+
+【コマンド (Bash)】
+pip install --upgrade pip
+pip install -r requirements.txt
+
+💡 開発者へ:
+新しいライブラリを追加した場合は、必ず「pip freeze > requirements.txt」を実行して
+リストを更新し、GitHubへコミットしてください。
+
+
+■ ステップ 3: 環境変数（.env）の設定
+メインスクリプト内のクリーンアップ処理等で使用するシステム管理用パスワードは、
+セキュリティのために環境変数ファイル（.env）から読み込みます。
+プロジェクトのルートディレクトリに .env ファイルを作成し、以下のようにキーと値を設定してください。
+
+【コマンド (Bash)】
+# ファイルの作成
+touch .env
+
+【.env の記述内容 (Plaintext)】
+MY_APP_PASSWORD=your_secure_password_here
+
+
+================================================================================
+2. 設定ファイル（config.json）の準備
+================================================================================
+システムを動作させるには、同一ディレクトリ内にセンサーの接続情報やAPIの送信先を記した
+config.json が必要です。
+
+【config.json の構成例 (JSON)】
+{
+  "vehicle_id": "VEHICLE_001",
+  "storage": {
+    "csv_path": "./log/csv/",
+    "image_dir": "./log/images/"
+  },
+  "sensors": {
+    "data_interval": 5,
+    "bus1": {
+      "bus_number": 1,
+      "sht41_addr": "0x44",
+      "accel_addr": "0x19",
+      "pressure_addr": "0x76"
+    },
+    "bus3": {
+      "bus_number": 3,
+      "sht41_addr": "0x44"
+    },
+    "GPS": {
+      "port": "/dev/ttyUSB0",
+      "baud": 9600,
+      "speed_calc_interval": 1
+    }
+  },
+  "cloud": {
+    "url": "https://ambidata.io/api/v2/channels/XXXXX/data",
+    "WRITE_KEY": "your_ambient_write_key",
+    "data_interval": 30
+  },
+  "LOCK_TARGET_DIRS": ["/tmp", "./"],
+  "LOCK_EXTENSIONS": ["*.lock", "*.pid"]
+}
+
+
+================================================================================
+3. 実行および運用
+================================================================================
+■ 通常実行
+【コマンド (Bash)】
+python main.py
+
+【概要】
+起動時に自動で古いロックファイル（.lock / .pid）や、過去の libcamera 関連の
+不要なプロセスをクリーンアップします。
+その後、計測ループに入り、条件を満たしたデータをCSVに保存しつつ、
+Ambientへバックグラウンド送信します。
+
+
+================================================================================
+4. バックグラウンド実行と自動起動（systemd）
+================================================================================
+本システムは Linux の systemd を用いて、mems.service という名称でシステムサービス化し、
+OS起動時に自動でバックグラウンド実行させることができます。
+
+■ 状態確認・管理用コマンド一覧
+【コマンド (Bash)】
+# 1. 起動時に自動有効化（enabled）になっているサービスの一覧確認
+4ystemctl list-unit-files --type=service | grep enabled
+
+# 2. 現在バックグラウンドで実際に動いているサービスを確認
+sudo systemctl list-units --type=service --state=running
+
+# 3. mems.service が自動起動有効になっているか確認
+systemctl is-enabled mems.service
+
+# 4. サービスの自動起動を有効化する
+sudo systemctl enable mems.service
+
+# 5. サービスの現在のステータスや直近のログを確認する
+systemctl status mems.service

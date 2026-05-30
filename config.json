@@ -1,0 +1,34 @@
+{
+    "vehicle_id": "CAR-001",
+    
+    
+    "LOCK_TARGET_DIRS":["./data/log/","/tmp/","/var/lock/","/var/run/"],
+    "LOCK_EXTENSIONS":["*.lock", "*.pid", "LCK..*"],
+    "cloud": {
+        "url": "https://ambidata.io/api/v2/channels/99589/data",
+        "WRITE_KEY":"3680ca21d9a5e389",
+        "data_interval": 60.0
+    },
+    "sensors": {
+        "data_interval": 10.0,
+        "bus1": {
+            "bus_number":1,
+            "sht41_addr": "0x44",
+            "pressure_addr": "0x5c",
+            "accel_addr": "0x14"
+        },
+        "bus3": {
+            "bus_number":3,
+            "sht41_addr": "0x44"
+        },
+        "GPS": {
+            "port" : "/dev/serial0",
+            "baud" : 115200,
+            "speed_calc_interval": 1.0
+        }
+    },
+    "storage": {
+        "csv_path": "./data/log/",
+        "image_dir": "./data/images/"
+    }
+}
