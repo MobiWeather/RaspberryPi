@@ -10,7 +10,8 @@ import glob
 import requests
 import subprocess
 import random
-
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
 #起動時に有効（enabled）になっているサービスを一覧表示
 #systemctl list-unit-files --type=service | grep enabled  grep mems
 #現在バックグラウンドで実際に動いているサービスを確認
@@ -22,9 +23,17 @@ import random
 #status
 #systemctl status mems.service
 
+# --- InfluxDB 設定 ---
+token = "4CPq5Yap8YeXWE2CVcG96sdnJmGg6VWAd6FDT0q7hRW3U5GtLvrK_3O07ptyGkQDVszQeTKlb2ns0xul_pUxbQ=="
+org = "MobiWeather"
+bucket = "sensor_data"
+url = "http://localhost:8086"
+
+client = InfluxDBClient(url=url, token=token, org=org)
+write_api = client.write_api(write_options=SYNCHRONOUS)
+
+
 #, sht41_sensor, pressure_sensor, accel_sensor, camera_module
-
-
 # ==========================================
 # ロックファイルの廃棄（クリーンアップ）関数
 # ==========================================
@@ -149,88 +158,97 @@ def main():
     start_timeCloud = time.time()
     
     
- 
-    while True:
+    try:
+        while True:
+            now_utc = datetime.now(timezone.utc)
+            date_str = now_utc.strftime("%Y/%m/%d/%H:%M:%S")
+            folder_name = now_utc.strftime("%Y%m%d")
+            
+            # --- データ取得 ---
+            # GPS & 速度 (speed_calc_intervalを使用)
+            #lat, lon, sat_num, speed,gps_time = GPS.get_data(speed_calc_interval,GPS_port,GPS_baud)
+            lat, lon, sat_num, speed,gps_time =35.6,140.3,-999,0,now_utc
+            #print(f"lat: {repr(lat)} (型: {type(lat)}), lon: {repr(lon)} (型: {type(lon)})")
         
-        now_utc = datetime.now(timezone.utc)
-        date_str = now_utc.strftime("%Y/%m/%d/%H:%M:%S")
-        folder_name = now_utc.strftime("%Y%m%d")
+            if gps_time==0 or sat_num==0:
+                continue
+            
         
-        # --- データ取得 ---
-        # GPS & 速度 (speed_calc_intervalを使用)
-        #lat, lon, sat_num, speed,gps_time = GPS.get_data(speed_calc_interval,GPS_port,GPS_baud)
-        lat, lon, sat_num, speed,gps_time =35.6,140.3,-999,0,now_utc
-        #print(f"lat: {repr(lat)} (型: {type(lat)}), lon: {repr(lon)} (型: {type(lon)})")
-    
-        if gps_time==0 or sat_num==0:
-            continue
+            dt_gps_str = gps_time.strftime("%Y/%m/%d/%H:%M:%S")
+            #dt_gps_str = "2026-05-18 01:02:03" 
+            # 温湿度 (Bus1 & Bus3)
+            t1, h1, dp1 = Multiple_SHT41MEMS.get_data(bus_number1)
+            t3, h3, dp3 = Multiple_SHT41MEMS.get_data(bus_number3)
+            #t3, h3, dp3 =t1, h1, dp1     
+            # 新相対湿度の計算 (temp1 と dewpoint3 を使用)
+            new_hum1 = Multiple_SHT41MEMS.calculate_new_hum(t1, dp3)
+            
+            # 大気圧 & 加速度
         
-    
-        dt_gps_str = gps_time.strftime("%Y/%m/%d/%H:%M:%S")
-        #dt_gps_str = "2026-05-18 01:02:03" 
-        # 温湿度 (Bus1 & Bus3)
-        t1, h1, dp1 = Multiple_SHT41MEMS.get_data(bus_number1)
-        t3, h3, dp3 = Multiple_SHT41MEMS.get_data(bus_number3)
-        #t3, h3, dp3 =t1, h1, dp1     
-        # 新相対湿度の計算 (temp1 と dewpoint3 を使用)
-        new_hum1 = Multiple_SHT41MEMS.calculate_new_hum(t1, dp3)
-        
-        # 大気圧 & 加速度
-       
-        pres = ATMOSPRESS.get_pressure(bus_number1,int(pressure_addr_bus1,16))
-        acc_x, acc_y, acc_z = ACCELEROMETER.get_accel( int(accel_addr_bus1,16),bus_number1)
-        
-              # フォルダ名を log に変更
+            pres = ATMOSPRESS.get_pressure(bus_number1,int(pressure_addr_bus1,16))
+            acc_x, acc_y, acc_z = ACCELEROMETER.get_accel( int(accel_addr_bus1,16),bus_number1)
+            
+                # フォルダ名を log に変更
 
-        # --- CSV書き出し ---
-#         row = [
-#             v_id, date_str, lat, lon, speed, sat_num,
-#             t1, h1, dp1, t3, h3, dp3,
-#             new_hum1, pres, acc_x, acc_y, acc_z, img_name
-#         ]
-        # 1. センサーデータの取得
-       
-        payload = {
-            "writeKey": WRITE_KEY,
-            "lat": lat,   # クォーテーションなしの数値
-            "lng": lon,  # クォーテーションなしの数値
-            "d1": speed,   # 気温
-            "d2": t1,   # 湿度
-            "d3": h1, # 気圧
-            "d4": t3,    # 雨量/感雨
-            "d5": h3,    # 風速
-            "d6": pres,  # 風向
-            "d7": lat,    # その他（日射など）
-            "d8": lon   # バッテリー電圧など
-           
-        }
+            # --- CSV書き出し ---
+    #         row = [
+    #             v_id, date_str, lat, lon, speed, sat_num,
+    #             t1, h1, dp1, t3, h3, dp3,
+    #             new_hum1, pres, acc_x, acc_y, acc_z, img_name
+    #         ]
+            # 1. センサーデータの取得
         
+            payload = {
+                "writeKey": WRITE_KEY,
+                "lat": lat,   # クォーテーションなしの数値
+                "lng": lon,  # クォーテーションなしの数値
+                "d1": speed,   # 気温
+                "d2": t1,   # 湿度
+                "d3": h1, # 気圧
+                "d4": t3,    # 雨量/感雨
+                "d5": h3,    # 風速
+                "d6": pres,  # 風向
+                "d7": lat,    # その他（日射など）
+                "d8": lon   # バッテリー電圧など
+            
+            }
+            
         
+            # インターバル調整
+            elapsed = time.time() - start_time
+
+            elapsedCloud = time.time() - start_timeCloud
+            
+            if (elapsed > data_interval and not(lat==0 and lon==0)):
+                # 画像撮影
+                img_name = CAMERA.get_images(config['storage']['image_dir']+folder_name)
+                row = [v_id, date_str, dt_gps_str,lat, lon, speed, sat_num,t1, h1, dp1, t3, h3, dp3,new_hum1, pres,img_name]
+
+                with open(csv_full_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(row)
+                    
+                start_time=time.time()
+                # ーーー InfluxDBへの送信処理 ーーー
+                point = Point("environment") \
+                    .tag("device", "raspberry_pi") \
+                    .field("temperature", float(t1)) \
+                    .field("pressure", float(pres)) \
+                    .time(datetime.utcnow(), WritePrecision.NS)
+        
+                write_api.write(bucket=bucket, org=org, record=point)
+                print(f"Data sent: Temp={t1}, Humid={pres}")
+        
+            if (elapsedCloud > data_intervalCloud and not(lat==0 and lon==0)):
+                send_to_anbient_worker(payload,API_URL)
+                start_timeCloud=time.time()
+            
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("ユーザーにより停止されました")
+    finally:
+        client.close()
     
-     
-        # インターバル調整
-        elapsed = time.time() - start_time
-
-        elapsedCloud = time.time() - start_timeCloud
-        
-        if (elapsed > data_interval and not(lat==0 and lon==0)):
-             # 画像撮影
-            img_name = CAMERA.get_images(config['storage']['image_dir']+folder_name)
-            row = [v_id, date_str, dt_gps_str,lat, lon, speed, sat_num,t1, h1, dp1, t3, h3, dp3,new_hum1, pres,img_name]
-
-            with open(csv_full_path, 'a', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(row)
-                
-            start_time=time.time()
-
     
-        if (elapsedCloud > data_intervalCloud and not(lat==0 and lon==0)):
-            send_to_anbient_worker(payload,API_URL)
-            #send_thread = threading.Thread(target=send_to_anbient_worker, args=(payload,API_URL))
-            #send_thread.start()  
-            start_timeCloud=time.time()
-        
-        time.sleep(1)
 if __name__ == "__main__":
     main()
