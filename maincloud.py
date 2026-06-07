@@ -4,8 +4,8 @@ import csv
 import os
 import threading  # 裏で処理を実行するために追加
 from datetime import datetime, timezone
-from sensors import GPS,Multiple_SHT41MEMS,ATMOSPRESS,ACCELEROMETER,CAMERA
-from visualization import Streamlit
+from sensors import GPS,ATMOSPRESS,ACCELEROMETER,CAMERA, Multiple_SHTxxMEMS
+
 import glob
 import requests
 import subprocess
@@ -120,18 +120,6 @@ def main():
     cleanup_lock_files(LOCK_TARGET_DIRS,LOCK_EXTENSIONS)
     
     # CSVヘッダーの準備
-#     header = [
-#         "ID", "dateTime", "lat", "lon", "speed", "satNum",
-#         "temp1", "hum1", "dewPoint1", "temp3", "hum3", "dewPoint3",
-#         "newhum1", "pressure", "accerateX", "accerateY", "accerateZ", "imageName"
-#     ]
-#    header = "ID,dateTime,gpsDateTime,lat,lon,speed,satNum,temp1,hum1,dewPoint1,temp3,hum3,dewPoint3,newhum1,pressure,accerateX,accerateY,accerateZ,imageName"
-# 
-#    header = [
-#        "ID", "dateTime","gpsDateTime", "lat", "lon", "speed", "satNum",
-#        "temp1", "hum1", "dewPoint1", "temp3", "hum3", "dewPoint3",
-#        "newhum1", "pressure",  "imageName"
-#    ]
     header = "ID,dateTime,gpsDateTime,lat,lon,speed,satNum,temp1,hum1,dewPoint1,temp3,hum3,dewPoint3,newhum1,pressure,imageName"
     log_dir = config['storage']['csv_path']
     
@@ -158,38 +146,26 @@ def main():
         
         # --- データ取得 ---
         # GPS & 速度 (speed_calc_intervalを使用)
-        #lat, lon, sat_num, speed,gps_time = GPS.get_data(speed_calc_interval,GPS_port,GPS_baud)
-        lat, lon, sat_num, speed,gps_time =35.6,140.3,-999,0,now_utc
-        #print(f"lat: {repr(lat)} (型: {type(lat)}), lon: {repr(lon)} (型: {type(lon)})")
-    
+        lat, lon, sat_num, speed,gps_time = GPS.get_data(speed_calc_interval,GPS_port,GPS_baud)
+       
         if gps_time==0 or sat_num==0:
             continue
         
     
         dt_gps_str = gps_time.strftime("%Y/%m/%d/%H:%M:%S")
-        #dt_gps_str = "2026-05-18 01:02:03" 
+    
         # 温湿度 (Bus1 & Bus3)
-        t1, h1, dp1 = Multiple_SHT41MEMS.get_data(bus_number1)
-        t3, h3, dp3 = Multiple_SHT41MEMS.get_data(bus_number3)
-        #t3, h3, dp3 =t1, h1, dp1     
+        t1, h1, dp1 = Multiple_SHTxxMEMS.get_data(bus_number1)
+        t3, h3, dp3 = Multiple_SHTxxMEMS.get_data(bus_number3)
         # 新相対湿度の計算 (temp1 と dewpoint3 を使用)
-        new_hum1 = Multiple_SHT41MEMS.calculate_new_hum(t1, dp3)
+        new_hum1 = Multiple_SHTxxMEMS.calculate_new_hum(t1, dp3)
         
         # 大気圧 & 加速度
        
         pres = ATMOSPRESS.get_pressure(bus_number1,int(pressure_addr_bus1,16))
         acc_x, acc_y, acc_z = ACCELEROMETER.get_accel( int(accel_addr_bus1,16),bus_number1)
         
-              # フォルダ名を log に変更
-
-        # --- CSV書き出し ---
-#         row = [
-#             v_id, date_str, lat, lon, speed, sat_num,
-#             t1, h1, dp1, t3, h3, dp3,
-#             new_hum1, pres, acc_x, acc_y, acc_z, img_name
-#         ]
-        # 1. センサーデータの取得
-       
+        #アンビエント用
         payload = {
             "writeKey": WRITE_KEY,
             "lat": lat,   # クォーテーションなしの数値
@@ -227,8 +203,7 @@ def main():
     
         if (elapsedCloud > data_intervalCloud and not(lat==0 and lon==0)):
             send_to_anbient_worker(payload,API_URL)
-            #send_thread = threading.Thread(target=send_to_anbient_worker, args=(payload,API_URL))
-            #send_thread.start()  
+
             start_timeCloud=time.time()
         
         time.sleep(1)

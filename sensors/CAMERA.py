@@ -30,10 +30,11 @@ def get_images(save_path):
             if result.returncode == 0:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] 保存成功: {file_path.name}")
                 # return の代わりに yield を使うことで、ループを殺さずに呼び出し元へ値を返せます
-                yield f"img_{timestamp}.jpg"
+                return f"img_{timestamp}.jpg"
+                
             else:
                 print(f"エラーが発生しました: {result.stderr}")
-                yield "Error"
+                return "Error"
             
             # 4. 次の撮影まで10秒待機（ここが抜けているとフリーズの原因になります）
             time.sleep(1)

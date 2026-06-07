@@ -4,8 +4,8 @@ import csv
 import os
 import threading  # 裏で処理を実行するために追加
 from datetime import datetime, timezone
-from sensors import GPS,Multiple_SHT41MEMS,ATMOSPRESS,ACCELEROMETER,CAMERA
-from visualization import Streamlit
+from sensors import GPS,ATMOSPRESS,ACCELEROMETER,CAMERA, Multiple_SHTxxMEMS
+
 import glob
 import requests
 import subprocess
@@ -47,10 +47,6 @@ def cleanup_lock_files(LOCK_TARGET_DIRS,LOCK_EXTENSIONS):
     print("ロック解除完了。")
     print("=== [STEP 1] 古いロックファイルの廃棄を開始します ===")
     removed_count = 0
-#    password = os.environ.get("MY_APP_PASSWORD")
-#    if not password:
-#        print("エラー: 環境変数 MY_APP_PASSWORD が設定されていません。")
-#        exit(1)
 
 #    print("環境変数からパスワードを正常に読み込みました。")
     for target_dir in LOCK_TARGET_DIRS:
@@ -129,18 +125,6 @@ def main():
     cleanup_lock_files(LOCK_TARGET_DIRS,LOCK_EXTENSIONS)
     
     # CSVヘッダーの準備
-#     header = [
-#         "ID", "dateTime", "lat", "lon", "speed", "satNum",
-#         "temp1", "hum1", "dewPoint1", "temp3", "hum3", "dewPoint3",
-#         "newhum1", "pressure", "accerateX", "accerateY", "accerateZ", "imageName"
-#     ]
-#    header = "ID,dateTime,gpsDateTime,lat,lon,speed,satNum,temp1,hum1,dewPoint1,temp3,hum3,dewPoint3,newhum1,pressure,accerateX,accerateY,accerateZ,imageName"
-# 
-#    header = [
-#        "ID", "dateTime","gpsDateTime", "lat", "lon", "speed", "satNum",
-#        "temp1", "hum1", "dewPoint1", "temp3", "hum3", "dewPoint3",
-#        "newhum1", "pressure",  "imageName"
-#    ]
     header = "ID,dateTime,gpsDateTime,lat,lon,speed,satNum,temp1,hum1,dewPoint1,temp3,hum3,dewPoint3,newhum1,pressure,imageName"
     log_dir = config['storage']['csv_path']
     
@@ -166,22 +150,19 @@ def main():
             
             # --- データ取得 ---
             # GPS & 速度 (speed_calc_intervalを使用)
-            #lat, lon, sat_num, speed,gps_time = GPS.get_data(speed_calc_interval,GPS_port,GPS_baud)
-            lat, lon, sat_num, speed,gps_time =35.6,140.3,-999,0,now_utc
-            #print(f"lat: {repr(lat)} (型: {type(lat)}), lon: {repr(lon)} (型: {type(lon)})")
-        
+            lat, lon, sat_num, speed,gps_time = GPS.get_data(speed_calc_interval,GPS_port,GPS_baud)
+            #lat, lon, sat_num, speed,gps_time =35.6,140.3,-999,0,now_utc
+            
             if gps_time==0 or sat_num==0:
                 continue
             
         
             dt_gps_str = gps_time.strftime("%Y/%m/%d/%H:%M:%S")
-            #dt_gps_str = "2026-05-18 01:02:03" 
             # 温湿度 (Bus1 & Bus3)
-            t1, h1, dp1 = Multiple_SHT41MEMS.get_data(bus_number1)
-            t3, h3, dp3 = Multiple_SHT41MEMS.get_data(bus_number3)
-            #t3, h3, dp3 =t1, h1, dp1     
+            t1, h1, dp1 = Multiple_SHTxxMEMS.get_data(bus_number1)
+            t3, h3, dp3 = Multiple_SHTxxMEMS.get_data(bus_number3)
             # 新相対湿度の計算 (temp1 と dewpoint3 を使用)
-            new_hum1 = Multiple_SHT41MEMS.calculate_new_hum(t1, dp3)
+            new_hum1 = Multiple_SHTxxMEMS.calculate_new_hum(t1, dp3)
             
             # 大気圧 & 加速度
         
@@ -190,14 +171,7 @@ def main():
             
                 # フォルダ名を log に変更
 
-            # --- CSV書き出し ---
-    #         row = [
-    #             v_id, date_str, lat, lon, speed, sat_num,
-    #             t1, h1, dp1, t3, h3, dp3,
-    #             new_hum1, pres, acc_x, acc_y, acc_z, img_name
-    #         ]
-            # 1. センサーデータの取得
-        
+            
             payload = {
                 "writeKey": WRITE_KEY,
                 "lat": lat,   # クォーテーションなしの数値
