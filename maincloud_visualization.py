@@ -233,7 +233,7 @@ def main():
         
             if (elapsedCloud > data_intervalCloud and not(lat==0 and lon==0)):
                 send_to_anbient_worker(payload,API_URL)
-                img_name = CAMERA.get_images(config['storage']['image_dir']+v_id+'_'+folder_name)
+                img_name = CAMERA.get_images(config['storage']['image_dir']+folder_name,v_id)
                 start_timeCloud=time.time()
             
             time.sleep(1)

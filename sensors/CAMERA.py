@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-def get_images(save_path):
+def get_images(save_pathm, v_id):
     # 1. 保存用フォルダの作成
     save_dir = Path(save_path)
     save_dir.mkdir(exist_ok=True)
@@ -14,7 +14,7 @@ def get_images(save_path):
         while True:
             # 2. 現在時刻をファイル名にする
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            file_path = save_dir / f"img_{timestamp}.jpg"
+            file_path = save_dir / f"{v_id}_img_{timestamp}.jpg"
             
             # 3. rpicam-still コマンドの構築
             cmd = [
