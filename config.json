@@ -1,12 +1,12 @@
 {
-    "vehicle_id": "CAR-001",
+    "vehicle_id": "CAR-002",
     
     
     "LOCK_TARGET_DIRS":["./data/log/","/tmp/","/var/lock/","/var/run/"],
     "LOCK_EXTENSIONS":["*.lock", "*.pid", "LCK..*"],
     "cloud": {
-        "url": "https://ambidata.io/api/v2/channels/99589/data",
-        "WRITE_KEY":"3680ca21d9a5e389",
+        "url": "https://ambidata.io/api/v2/channels/99345/data",
+        "WRITE_KEY":"d83a7a0afa450482",
         "data_interval": 60.0
     },
     "sensors": {

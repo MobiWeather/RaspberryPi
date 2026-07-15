@@ -130,7 +130,7 @@ def main():
     
     os.makedirs(log_dir, exist_ok=True)
     # ファイル名を日時 (yyyyMMddHHmmss.csv) に設定
-    file_name =datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + ".csv"
+    file_name =v_id+'_'+datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + ".csv"
     csv_full_path = os.path.join(log_dir, file_name)
 
     with open(csv_full_path, 'w') as f:
@@ -152,15 +152,26 @@ def main():
             # GPS & 速度 (speed_calc_intervalを使用)
             lat, lon, sat_num, speed,gps_time = GPS.get_data(speed_calc_interval,GPS_port,GPS_baud)
             #lat, lon, sat_num, speed,gps_time =35.6,140.3,-999,0,now_utc
-            
-            if gps_time==0 or sat_num==0:
+            # 対策例：GPS時刻が取れていない場合は、Raspberry Pi本体の現在時刻で代用する
+            if gps_time is not None:
+                dt_gps_str = gps_time.strftime("%Y/%m/%d/%H:%M:%S")
+            else:
+                # GPSが未測位のときのバックアップ処理
+                dt_gps_str = datetime.now().strftime("%Y/%m/%d/%H:%M:%S")
+                # もしくは単に文字列にしたいなら： dt_gps_str = "0000/00/00/00:00:00" など
+            print(f"GPS: Speed={speed} {sat_num} sats, Lat={lat}, Lon={lon}, GPS Time={dt_gps_str}")
+            if  sat_num==0:
                 continue
             
         
-            dt_gps_str = gps_time.strftime("%Y/%m/%d/%H:%M:%S")
+            #d_gps_str = gps_time.strftime("%Y/%m/%d/%H:%M:%S")
             # 温湿度 (Bus1 & Bus3)
             t1, h1, dp1 = Multiple_SHTxxMEMS.get_data(bus_number1)
+           
             t3, h3, dp3 = Multiple_SHTxxMEMS.get_data(bus_number3)
+            #t3, h3, dp3 =-1,-1,-1
+            
+            #t1, h1, dp1=-1, -1, -1
             # 新相対湿度の計算 (temp1 と dewpoint3 を使用)
             new_hum1 = Multiple_SHTxxMEMS.calculate_new_hum(t1, dp3)
             
@@ -195,8 +206,8 @@ def main():
             
             if (elapsed > data_interval and not(lat==0 and lon==0)):
                 # 画像撮影
-                img_name = CAMERA.get_images(config['storage']['image_dir']+folder_name)
-                row = [v_id, date_str, dt_gps_str,lat, lon, speed, sat_num,t1, h1, dp1, t3, h3, dp3,new_hum1, pres,img_name]
+                #img_name = CAMERA.get_images(config['storage']['image_dir']+folder_name)
+                row = [v_id, date_str, dt_gps_str,lat, lon, f"{speed:.3f}", sat_num,t1, h1, dp1, t3, h3, dp3,new_hum1, pres,""]
 
                 with open(csv_full_path, 'a', newline='') as f:
                     writer = csv.writer(f)
@@ -205,9 +216,16 @@ def main():
                 start_time=time.time()
                 # ーーー InfluxDBへの送信処理 ーーー
                 point = Point("environment") \
-                    .tag("device", "raspberry_pi") \
-                    .field("temperature", float(t1)) \
+                    .tag("device", v_id) \
+                    .field("temperature1", float(t1)) \
+                    .field("temperature3", float(t3)) \
+                    .field("humidity1", float(h1)) \
+                    .field("humidity3", float(h3)) \
+                    .field("dewpoint1", float(dp1)) \
+                    .field("dewpoint3", float(dp3)) \
+                    .field("new_humidity1", float(new_hum1)) \
                     .field("pressure", float(pres)) \
+                    .field("speed", float(speed)) \
                     .time(datetime.utcnow(), WritePrecision.NS)
         
                 write_api.write(bucket=bucket, org=org, record=point)
@@ -215,6 +233,7 @@ def main():
         
             if (elapsedCloud > data_intervalCloud and not(lat==0 and lon==0)):
                 send_to_anbient_worker(payload,API_URL)
+                img_name = CAMERA.get_images(config['storage']['image_dir']+v_id+'_'+folder_name)
                 start_timeCloud=time.time()
             
             time.sleep(1)
